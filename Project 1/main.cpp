@@ -7,12 +7,22 @@
 #include <sstream>
 #include <vector>
 #include <unistd.h>
-#include <winsock2.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <map>
+#include <netdb.h>
 
 using namespace std;
+
+map <int, string> default_ports = {{25, "SMTP"}, {80, "HTTP"}, {443, "HTTPS"}, {20, "FTP"}, {21, "FTP"}, {23, "TELNET"}, {143, "IMAP"}, {22, "SSH"}, {53, "DNS"}};
+
 struct range {
   int start_range, end_range;
 };
+int checkDefault(int port);
 range parseRange(string string_range, range ports);
 void scanPorts(string host_name, range ports);
 
@@ -30,6 +40,13 @@ int main(int argc, char *argv[]) {
                   break;
           }
   scanPorts(host_name, ports);
+}
+//Checks to see if the input port number is a default ports
+int checkDefault(int port) {
+  if (default_ports[port] != "")
+    return 1;
+  else
+    return 0;
 }
 //Divides the given range into workable numbers
 range parseRange(string string_range, range ports) {
@@ -51,17 +68,23 @@ range parseRange(string string_range, range ports) {
 }
 //Scans all of the ports in the given range.
 void scanPorts(string host_name, range ports) {
-  SOCKET socketfd; //socket descriptor
-  SOCKADDR_IN sockaddr; //socket address
+  int socketfd; //socket descriptor
+  struct sockaddr_in sockaddr; //socket address
+  const char* addr = host_name.c_str();
+
   for (int port = ports.start_range; port <= ports.end_range; port++) {
-    socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); //AF_LOCAL
+    socketfd = socket(AF_INET, SOCK_STREAM, 0); //AF_LOCAL
 
     sockaddr.sin_family = AF_INET;
+    sockaddr.sin_addr.s_addr = inet_addr(addr);
     sockaddr.sin_port = htons(port); //set the port number
+    checkDefault(port);
 
-    if (connect(socketfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)))
-      printf("Port %i is open\n", port);
+    if (connect(socketfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) == 0 && checkDefault(port))
+      cout << default_ports[port] << " is open" << endl;
+    else if (connect(socketfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) == 0)
+      cout << "Port " << port << " is open" << endl;
 
-    closesocket(socketfd);
+    close(socketfd);
   }
 }
