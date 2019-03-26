@@ -70,13 +70,15 @@ range parseRange(string string_range, range ports) {
 void scanPorts(string host_name, range ports) {
   int socketfd; //socket descriptor
   struct sockaddr_in sockaddr; //socket address
-  const char* addr = host_name.c_str();
+  // const char* addr = host_name.c_str();
+  hostent* host_info = gethostbyname(host_name.c_str());
+  string host_ip = string(inet_ntoa(**(in_addr**)host_info->h_addr_list));
 
   for (int port = ports.start_range; port <= ports.end_range; port++) {
     socketfd = socket(AF_INET, SOCK_STREAM, 0); //AF_LOCAL
 
     sockaddr.sin_family = AF_INET;
-    sockaddr.sin_addr.s_addr = inet_addr(addr);
+    sockaddr.sin_addr.s_addr = inet_addr(host_ip.c_str());
     sockaddr.sin_port = htons(port); //set the port number
     checkDefault(port);
 
