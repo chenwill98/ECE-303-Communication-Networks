@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/cygdrive/c/Users/chenw_za2im/Documents/Comm Nets/Project 1/main.cpp
+iostream
+-
+sstream
+-
+vector
+-
+unistd.h
+-
+sys/socket.h
+-
+sys/types.h
+-
+arpa/inet.h
+-
+netinet/in.h
+-
+netinet/ip.h
+-
+map
+-
+netdb.h
+-
+
