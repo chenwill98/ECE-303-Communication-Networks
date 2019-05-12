@@ -72,7 +72,7 @@ class ReliableReceiver(Receiver):
                 data = data_packet[2:]
 
                 # Compares the received checksum to the generated checksum
-                if checksum == self._checksum(data):
+                if self._checksum(data):
                     self.seq = (seq_num + 1) % MAX_SEQUENCE
                     if self.final_ack == -1 or seq_num == self.final_ack:
                         sys.stdout.write("{}".format(data))
@@ -82,17 +82,6 @@ class ReliableReceiver(Receiver):
                     self.seq = 0
                 self.current_ack = bytearray([self.seq, self.seq])
                 self._send_ack(self.seq)
-
-                # ACK_seg = Packet()
-                # ACK_success = ACK_seg.ack(data_packet, self.final_ack)
-                # if ACK_success:
-                #     self.final_ack = ACK_seg.ack_num
-                # if ACK_seg.ack_num < 0:
-                #     ACK_seg.ack_num = 0  # we set it to 0 here, it may be set back to -1
-                # # ACK_seg.check_sum = ACK_seg.checksum()
-                # rcv_array = bytearray([ACK_seg.check_sum, ACK_seg.ack_num])
-                # # self.ACK_backup = rcv_array
-                # self.simulator.u_send(rcv_array)
 
             # If timeout, respond the same way as a corrupted packet
             except socket.timeout:
@@ -115,12 +104,14 @@ class ReliableReceiver(Receiver):
         ack_pkt = bytearray([ack.check_sum, ack.ack_num])
         self.simulator.u_send(ack_pkt)
 
-    @staticmethod
-    def _checksum(data):
-        check_sum = 0
-        for bit in data:
-            check_sum ^= bit
-        return check_sum
+    def _checksum(self, data):
+        check_sum_val = ~ data[0]  # Invert all the bits in the first row of the data array (i.e. the checksum row)
+        for i in xrange(2, len(data)):
+            check_sum_val ^= data[i]  # XOR against all of the rows in the data
+        if check_sum_val == - 1:
+            return True  # If check_sum_val is all ones (i.e. -1 in twos complement), we good
+        else:
+            return False
 
 
 # Packet format: [Checksum, ACK]
@@ -134,25 +125,6 @@ class Packet(object):
     @staticmethod
     def _checksum(ack_num):
         return ack_num
-
-    @staticmethod
-    def _checksum1(data):
-        check_sum = 0
-        for bit in data:
-            check_sum ^= bit
-        return check_sum
-
-    # Checks if the ACK is valid
-    def ack(self, data, last_ACK_num):
-        if self.check_sum == self._checksum1(data):
-            self.ack_num = (data[1] + 1) % 200
-            if data[1] == last_ACK_num or last_ACK_num == -1:
-                sys.stdout.write("{}".format(data[2:]))
-                sys.stdout.flush()
-                return True
-        else:
-            pass
-        return False
 
 
 if __name__ == "__main__":

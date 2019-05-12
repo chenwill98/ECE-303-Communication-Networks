@@ -68,15 +68,15 @@ class ReliableSender(Sender):
             "Sending on port: {} and waiting for ACK on port: {}".format(self.outbound_port, self.inbound_port))
 
         # Split the data into many packets
-        pkt_array = [data[i:i + self.pkt_size] for i in range(0, len(data), self.pkt_size)]
+        pkt_array = [data[i:i + self.pkt_size] for i in xrange(0, len(data), self.pkt_size)]
 
-        for i in range(0, self.pkt_count):
+        for i in xrange(0, self.pkt_count):
             try:
                 # Generates the packet and sends the payload in the correct format
                 pkt = Packet(i, data=pkt_array[i])
                 data_pkt = bytearray([pkt.check_sum, pkt.seq_num]) + pkt_array[i]
                 self.simulator.u_send(data_pkt)
-
+                print(data_pkt[0])
                 # Waits for a response from the receiver
                 while True:
                     ack_pkt = self.simulator.u_receive()
@@ -127,11 +127,19 @@ class Packet(object):
         self.check_sum = self._checksum(data)
         self.data = data
 
+    # @staticmethod
+    # def _checksum(data):
+    #     check_sum = 0
+    #     for bit in data:
+    #         check_sum ^= bit
+    #     return check_sum
+
     @staticmethod
     def _checksum(data):
+        data_array = bytearray(data)
         check_sum = 0
-        for bit in data:
-            check_sum ^= bit
+        for i in xrange(len(data_array)):
+            check_sum ^= data_array[i]
         return check_sum
 
     @staticmethod
