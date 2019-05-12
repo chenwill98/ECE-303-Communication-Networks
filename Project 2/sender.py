@@ -88,7 +88,7 @@ class ReliableSender(Sender):
                     self.logger.info(
                         "Receiving ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
                     # If the checksum matches the ACK
-                    if self._checksum(ack_pkt):
+                    if self._checksum(ack_pkt) or (ack_pkt[0] == 1 and ack_pkt[1] == 0):
                         # If the sequence number matches the ACK, we don't need to do anything
                         if ack_pkt[1] == self.seq_num:
                             self.simulator.u_send(data_pkt)
@@ -108,8 +108,8 @@ class ReliableSender(Sender):
                         # If there was some other error, resend
                         else:
                             self.simulator.u_send(data_pkt)
-                        self.logger.info(
-                             "Sending other error packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
+                            self.logger.info(
+                                "Sending other error packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
                     # If the ACK is corrupted
                     else:
@@ -125,15 +125,14 @@ class ReliableSender(Sender):
 
     def _error_resend(self, data_pkt):
         self.first = False
-        self.simulator.u_send(data_pkt)
         self.pkt_resend += 1
+        self.simulator.u_send(data_pkt)
         if self.pkt_resend >= 3:
             self.timeout *= 5
             self.simulator.sndr_socket.settimeout(self.timeout)
             self.pkt_resend = 0
-            # If there's too many timeouts, it quits
+            # If there's too long timeouts, it quits
             if self.timeout >= 3:
-                print("Timed out")
                 sys.exit()
 
     @staticmethod

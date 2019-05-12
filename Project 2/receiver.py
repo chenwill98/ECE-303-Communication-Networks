@@ -55,7 +55,7 @@ class ReliableReceiver(Receiver):
         self.timeout = timeout
         self.simulator.rcvr_socket.settimeout(self.timeout)
         self.data_packet = bytearray([0, 0, 0])
-        self.corrupted = bytearray([0, 1])
+        self.corrupted = bytearray([1, 0])
         self.ack_resend = 0
         self.final_ack = -1
         self.seq = 0
@@ -78,9 +78,14 @@ class ReliableReceiver(Receiver):
                 if self._checksum(data_packet):
                     self.seq = (seq_num + 1) % MAX_SEQUENCE
                     if self.final_ack == -1 or seq_num == self.final_ack:
-                        sys.stdout.write("{}".format(data))
+                        sys.stdout.write("{}".format(data.decode('ascii')))
                         sys.stdout.flush()
                     self.final_ack = self.seq
+                else:
+                    # self._error_resend(self.corrupted)
+                    self.logger.info(
+                        "Sending corrupt corrupt ACK checksum: {} seq_num:{}".format(self.corrupted[0],
+                                                                                     self.corrupted[1]))
                 if self.seq < 0:
                     self.seq = 0
                 self._send_ack(self.seq)
@@ -88,19 +93,18 @@ class ReliableReceiver(Receiver):
             # If timeout, respond the same way as a corrupted packet
             except socket.timeout:
                 self._error_resend(self.corrupted) # Send a "corrupted" ACK that has a checksum and ACK mismatch
+                self.logger.info(
+                    "Sending corrupt timeout ACK checksum: {} seq_num:{}".format(self.corrupted[0], self.corrupted[1]))
 
     def _error_resend(self, ack_pkt):
         self.simulator.u_send(ack_pkt)
-        self.logger.info(
-            "Sending ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
         self.ack_resend += 1
         if self.ack_resend >= 3:
             self.timeout *= 5
             self.simulator.rcvr_socket.settimeout(self.timeout)
             self.ack_resend = 0
-            # If there's too many timeouts, it quits
+            # If there's too long timeouts, it quits
             if self.timeout >= 3:
-                print("Timed out")
                 sys.exit()
 
     def _send_ack(self, seq_num):
