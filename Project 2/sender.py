@@ -71,7 +71,7 @@ class ReliableSender(Sender):
         pkt_array = [data[i:i + self.pkt_size] for i in xrange(0, len(data), self.pkt_size)]
 
         for i in xrange(0, self.pkt_count):
-            self.first = True
+            # self.first = True
             try:
                 if self.first:
                     # Generates the packet and sends the payload in the correct format
@@ -80,7 +80,7 @@ class ReliableSender(Sender):
                     self.seq_num = pkt.seq_num
                     self.simulator.u_send(data_pkt)
                     self.logger.info(
-                        "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
+                        "Sending first packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
                 # Waits for a response from the receiver
                 while True:
@@ -95,30 +95,31 @@ class ReliableSender(Sender):
                         # If the sequence number is less than the ACK, it means that the packet was also accepted and
                         # the ACK for that sequence number just got lost in the channel so we'll just accept packets
                         # that 1 ahead
-                        # elif (self.seq_num + 10) % MAX_SEQUENCE > ack_pkt[1] > self.seq_num:
                         elif ack_pkt[1] == (self.seq_num + 1) % MAX_SEQUENCE:
-                            self.first = False
+                            self.first = True
                             self.pkt_resend = 0
-                            # if self.timeout > self.global_timeout:
-                            #     self.timeout -= self.global_timeout
-                            # self.simulator.sndr_socket.settimeout(self.timeout)
+                            if self.timeout > self.global_timeout:
+                                self.timeout -= self.global_timeout
+                            self.simulator.sndr_socket.settimeout(self.timeout)
                             break
 
                         # If there was some other error, resend
                         else:
                             self.simulator.u_send(data_pkt)
                         self.logger.info(
-                             "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
+                             "Sending other error packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
                     # If the ACK is corrupted
                     else:
                         self._error_resend(data_pkt)
-                    self.logger.info(
-                        "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
+                        self.logger.info(
+                             "Sending corrupted packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
             # If it times out, simply send the data again
             except socket.timeout:
                 self._error_resend(data_pkt)
+                self.logger.info(
+                     "Sending timeout packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
     def _error_resend(self, data_pkt):
         self.first = False
@@ -129,7 +130,7 @@ class ReliableSender(Sender):
             self.simulator.sndr_socket.settimeout(self.timeout)
             self.pkt_resend = 0
             # If there's too many timeouts, it quits
-            if self.timeout >= 6:
+            if self.timeout >= 3:
                 print("RIP")
                 sys.exit()
 

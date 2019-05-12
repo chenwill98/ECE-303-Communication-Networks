@@ -91,15 +91,17 @@ class ReliableReceiver(Receiver):
             except socket.timeout:
                 self._error_resend(self.current_ack)
 
-    def _error_resend(self, data_pkt):
-        self.simulator.u_send(data_pkt)
+    def _error_resend(self, ack_pkt):
+        self.simulator.u_send(ack_pkt)
+        self.logger.info(
+            "Sending ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
         self.ack_resend += 1
         if self.ack_resend >= 3:
             self.timeout *= 2
             self.simulator.rcvr_socket.settimeout(self.timeout)
             self.ack_resend = 0
             # If there's too many timeouts, it quits
-            if self.timeout >= 6:
+            if self.timeout >= 3:
                 sys.exit()
 
     def _send_ack(self, seq_num):
