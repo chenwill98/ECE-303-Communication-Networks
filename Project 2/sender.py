@@ -50,7 +50,7 @@ class Sender(object):
 
 class ReliableSender(Sender):
 
-    global_timeout = 0;
+    global_timeout = 0
 
     def __init__(self, data, pkt_size, timeout):
         super(ReliableSender, self).__init__()
@@ -71,42 +71,57 @@ class ReliableSender(Sender):
         pkt_array = [data[i:i + self.pkt_size] for i in xrange(0, len(data), self.pkt_size)]
 
         for i in xrange(0, self.pkt_count):
+            self.first = True
             try:
-                # Generates the packet and sends the payload in the correct format
-                pkt = Packet(i, data=pkt_array[i])
-                data_pkt = bytearray([pkt.check_sum, pkt.seq_num]) + pkt_array[i]
-                self.simulator.u_send(data_pkt)
-                print(data_pkt[0])
+                if self.first:
+                    # Generates the packet and sends the payload in the correct format
+                    pkt = Packet(i, data=pkt_array[i])
+                    data_pkt = bytearray([pkt.check_sum, pkt.seq_num]) + pkt_array[i]
+                    self.seq_num = pkt.seq_num
+                    self.simulator.u_send(data_pkt)
+                    self.logger.info(
+                        "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
+
                 # Waits for a response from the receiver
                 while True:
                     ack_pkt = self.simulator.u_receive()
+                    self.logger.info(
+                        "Receiving ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
                     # If the checksum matches the ACK
-                    if ack_pkt[0] == ack_pkt[1]:
+                    if self._checksum(ack_pkt):
                         # If the sequence number matches the ACK, we don't need to do anything
-
+                        if ack_pkt[1] == self.seq_num:
+                            pass
                         # If the sequence number is less than the ACK, it means that the packet was also accepted and
                         # the ACK for that sequence number just got lost in the channel so we'll just accept packets
-                        # that are up to 5 ahead
-                        if (self.seq_num + 5) % MAX_SEQUENCE > ack_pkt[1] > self.seq_num:
+                        # that 1 ahead
+                        # elif (self.seq_num + 10) % MAX_SEQUENCE > ack_pkt[1] > self.seq_num:
+                        elif ack_pkt[1] == (self.seq_num + 1) % MAX_SEQUENCE:
+                            self.first = False
                             self.pkt_resend = 0
-                            if self.timeout > self.global_timeout:
-                                self.timeout -= self.global_timeout
-                            self.simulator.sndr_socket.settimeout(self.timeout)
+                            # if self.timeout > self.global_timeout:
+                            #     self.timeout -= self.global_timeout
+                            # self.simulator.sndr_socket.settimeout(self.timeout)
                             break
 
                         # If there was some other error, resend
                         else:
                             self.simulator.u_send(data_pkt)
+                        self.logger.info(
+                             "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
                     # If the ACK is corrupted
                     else:
                         self._error_resend(data_pkt)
+                    self.logger.info(
+                        "Sending packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
 
             # If it times out, simply send the data again
             except socket.timeout:
                 self._error_resend(data_pkt)
 
     def _error_resend(self, data_pkt):
+        self.first = False
         self.simulator.u_send(data_pkt)
         self.pkt_resend += 1
         if self.pkt_resend >= 3:
@@ -117,6 +132,16 @@ class ReliableSender(Sender):
             if self.timeout >= 6:
                 print("RIP")
                 sys.exit()
+
+    @staticmethod
+    def _checksum(data):
+        check_sum_val = ~ data[0]  # Invert all the bits in the first row of the data array (i.e. the checksum row)
+        for i in xrange(1, len(data)):
+            check_sum_val ^= data[i]  # XOR against all of the rows in the data
+        if check_sum_val == - 1:
+            return True  # If check_sum_val is all ones (i.e. -1 in twos complement), we good
+        else:
+            return False
 
 
 # Packet format: [Checksum, Sequence number, Data]
@@ -154,5 +179,5 @@ if __name__ == "__main__":
     # sndr.send(DATA)
 
     # ReliableSender(pkt_size, data, timeout)
-    sndr = ReliableSender(DATA, 150, 0.1)
+    sndr = ReliableSender(DATA, 100, 0.1)
     sndr.send(DATA)

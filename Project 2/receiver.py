@@ -59,6 +59,7 @@ class ReliableReceiver(Receiver):
         self.ack_resend = 0
         self.final_ack = -1
         self.seq = 0
+        self.timeout_count = 0
 
     def receive(self):
         self.logger.info(
@@ -67,12 +68,15 @@ class ReliableReceiver(Receiver):
         while True:
             try:
                 data_packet = self.simulator.u_receive()  # receive data
+
                 checksum = data_packet[0]
                 seq_num = data_packet[1]
                 data = data_packet[2:]
+                self.logger.info(
+                    "Receiving packet checksum: {} seq_num:{}".format(checksum, seq_num))
 
                 # Compares the received checksum to the generated checksum
-                if self._checksum(data):
+                if self._checksum(data_packet):
                     self.seq = (seq_num + 1) % MAX_SEQUENCE
                     if self.final_ack == -1 or seq_num == self.final_ack:
                         sys.stdout.write("{}".format(data))
@@ -103,8 +107,11 @@ class ReliableReceiver(Receiver):
         ack = Packet(ack_num=seq_num)
         ack_pkt = bytearray([ack.check_sum, ack.ack_num])
         self.simulator.u_send(ack_pkt)
+        self.logger.info(
+            "Sending ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
 
-    def _checksum(self, data):
+    @staticmethod
+    def _checksum(data):
         check_sum_val = ~ data[0]  # Invert all the bits in the first row of the data array (i.e. the checksum row)
         for i in xrange(2, len(data)):
             check_sum_val ^= data[i]  # XOR against all of the rows in the data
