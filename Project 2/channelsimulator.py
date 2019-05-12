@@ -112,7 +112,6 @@ class ChannelSimulator(object):
         Swap errors are implemented via a queue that holds two old frames which are randomly swapped into the channel.
         The queue is initialized with two random frames.
         Drop errors drop the current frame and all the frames "delayed" in the swap queue.
-
         :param swap_error_prob: swap frame error probability
         :param random_error_prob: random bit error probability
         :param drop_error_prob: drop frame error probability

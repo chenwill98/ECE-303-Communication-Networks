@@ -91,7 +91,9 @@ class ReliableSender(Sender):
                     if self._checksum(ack_pkt):
                         # If the sequence number matches the ACK, we don't need to do anything
                         if ack_pkt[1] == self.seq_num:
-                            pass
+                            self.simulator.u_send(data_pkt)
+                            self.logger.info(
+                                "Sending seq=seq packet checksum: {} seq_num:{}".format(data_pkt[0], data_pkt[1]))
                         # If the sequence number is less than the ACK, it means that the packet was also accepted and
                         # the ACK for that sequence number just got lost in the channel so we'll just accept packets
                         # that 1 ahead
@@ -126,23 +128,22 @@ class ReliableSender(Sender):
         self.simulator.u_send(data_pkt)
         self.pkt_resend += 1
         if self.pkt_resend >= 3:
-            self.timeout *= 2
+            self.timeout *= 5
             self.simulator.sndr_socket.settimeout(self.timeout)
             self.pkt_resend = 0
             # If there's too many timeouts, it quits
             if self.timeout >= 3:
-                print("RIP")
+                print("Timed out")
                 sys.exit()
 
     @staticmethod
     def _checksum(data):
-        check_sum_val = ~ data[0]  # Invert all the bits in the first row of the data array (i.e. the checksum row)
+        checksum = ~ data[0]      # covert to two's complement
         for i in xrange(1, len(data)):
-            check_sum_val ^= data[i]  # XOR against all of the rows in the data
-        if check_sum_val == - 1:
-            return True  # If check_sum_val is all ones (i.e. -1 in twos complement), we good
-        else:
-            return False
+            checksum ^= data[i]   # XOR bitwise
+        if checksum == - 1:
+            return True
+        return False
 
 
 # Packet format: [Checksum, Sequence number, Data]
@@ -152,13 +153,6 @@ class Packet(object):
         self.seq_num = self._sequence_number(seq_num)
         self.check_sum = self._checksum(data)
         self.data = data
-
-    # @staticmethod
-    # def _checksum(data):
-    #     check_sum = 0
-    #     for bit in data:
-    #         check_sum ^= bit
-    #     return check_sum
 
     @staticmethod
     def _checksum(data):

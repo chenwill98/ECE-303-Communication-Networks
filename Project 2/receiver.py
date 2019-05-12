@@ -55,11 +55,10 @@ class ReliableReceiver(Receiver):
         self.timeout = timeout
         self.simulator.rcvr_socket.settimeout(self.timeout)
         self.data_packet = bytearray([0, 0, 0])
-        self.current_ack = bytearray([0, 0])
+        self.corrupted = bytearray([0, 1])
         self.ack_resend = 0
         self.final_ack = -1
         self.seq = 0
-        self.timeout_count = 0
 
     def receive(self):
         self.logger.info(
@@ -84,12 +83,11 @@ class ReliableReceiver(Receiver):
                     self.final_ack = self.seq
                 if self.seq < 0:
                     self.seq = 0
-                self.current_ack = bytearray([self.seq, self.seq])
                 self._send_ack(self.seq)
 
             # If timeout, respond the same way as a corrupted packet
             except socket.timeout:
-                self._error_resend(self.current_ack)
+                self._error_resend(self.corrupted) # Send a "corrupted" ACK that has a checksum and ACK mismatch
 
     def _error_resend(self, ack_pkt):
         self.simulator.u_send(ack_pkt)
@@ -97,11 +95,12 @@ class ReliableReceiver(Receiver):
             "Sending ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
         self.ack_resend += 1
         if self.ack_resend >= 3:
-            self.timeout *= 2
+            self.timeout *= 5
             self.simulator.rcvr_socket.settimeout(self.timeout)
             self.ack_resend = 0
             # If there's too many timeouts, it quits
             if self.timeout >= 3:
+                print("Timed out")
                 sys.exit()
 
     def _send_ack(self, seq_num):
@@ -112,15 +111,15 @@ class ReliableReceiver(Receiver):
         self.logger.info(
             "Sending ACK checksum: {} seq_num:{}".format(ack_pkt[0], ack_pkt[1]))
 
+    # Credit to Rayhan for this
     @staticmethod
     def _checksum(data):
-        check_sum_val = ~ data[0]  # Invert all the bits in the first row of the data array (i.e. the checksum row)
+        checksum = ~ data[0]           # covert to two's complement
         for i in xrange(2, len(data)):
-            check_sum_val ^= data[i]  # XOR against all of the rows in the data
-        if check_sum_val == - 1:
-            return True  # If check_sum_val is all ones (i.e. -1 in twos complement), we good
-        else:
-            return False
+            checksum ^= data[i]        # XOR bitwise
+        if checksum == - 1:
+            return True
+        return False
 
 
 # Packet format: [Checksum, ACK]
